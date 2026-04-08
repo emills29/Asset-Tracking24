@@ -22,10 +22,10 @@ const HEARTBEAT_STALE_SECONDS = Number(process.env.HEARTBEAT_STALE_SECONDS || 45
 
 // STORAGE 
 
-// Stores latest ESP32 heartbeat data (RAM only)
+// Stores latest ESP32 heartbeat data 
 const heartbeats = new Map();
 
-// Maps MAC address → asset info (important for matching Cisco Spaces)
+// Maps MAC address → asset info 
 const ASSET_REGISTRY = {
   'aa:bb:cc:dd:ee:ff': {
     assetId: 'A-101',
