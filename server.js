@@ -6,7 +6,7 @@ require('dotenv').config();           // Loads .env variables
 //  APP SETUP 
 
 const app = express();
-app.use(cors());              // Allow cross-origin requests (VERY important)
+app.use(cors());              // Allow cross-origin requests 
 app.use(express.json());      // Allows us to read JSON from ESP32
 
 // CONFIG 
