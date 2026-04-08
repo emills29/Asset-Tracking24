@@ -13,7 +13,7 @@ app.use(express.json());      // Allows us to read JSON from ESP32
 
 const PORT = process.env.PORT || 3000;
 
-// Cisco Spaces API info (comes from .env)
+// Cisco Spaces API info 
 const SPACES_BASE_URL = process.env.CISCO_SPACES_BASE_URL || 'https://dnaspaces.io';
 const SPACES_TOKEN = process.env.CISCO_SPACES_TOKEN || '';
 
