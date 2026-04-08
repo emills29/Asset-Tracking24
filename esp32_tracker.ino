@@ -192,14 +192,12 @@ void setup() {
   Serial.begin(115200); // Start serial monitor
   delay(1000);
 
-  connectWifi(); // Connect to WiFi at startup
+  connectWifi(); 
 }
 
 // MAIN LOOP
 
 void loop() {
-
-  // Send data every X milliseconds (non-blocking)
   if (millis() - lastPost >= POST_INTERVAL_MS) {
     lastPost = millis();
     postHeartbeat();
