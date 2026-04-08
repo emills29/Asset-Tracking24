@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hospital Asset Tracker Live</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --card:rgba(255,255,255,0.06);
+    --text:rgba(255,255,255,0.92);
+    --muted:rgba(255,255,255,0.70);
+    --stroke:rgba(255,255,255,0.14);
+    --accent:#7dd3fc;
+    --shadow:0 12px 30px rgba(0,0,0,0.35);
+    --radius:18px;
+    --use:#fb7185;
+    --avail:#34d399;
+    --maint:#fbbf24;
+    --missing:#a78bfa;
+  }
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  body{
+    margin:0;padding:18px;
+    background:
+      radial-gradient(1200px 600px at 30% 10%, rgba(125,211,252,0.18), transparent 55%),
+      radial-gradient(900px 500px at 80% 20%, rgba(52,211,153,0.14), transparent 55%),
+      var(--bg);
+    color:var(--text);min-height:100vh;
+  }
+  .wrap{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:420px 1fr;gap:16px;align-items:start}
+  @media (max-width:1050px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(10px)}
+  header.card{grid-column:1/-1;padding:16px 18px;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+  header h1{margin:0;font-size:18px;letter-spacing:.2px}
+  header .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .pill{font-size:12px;padding:8px 10px;border:1px solid var(--stroke);border-radius:999px;color:var(--muted);display:inline-flex;gap:8px;align-items:center;white-space:nowrap}
+  .left.card{padding:14px}
+  .right.card{padding:14px}
+  label{font-size:12px;color:var(--muted)}
+  input,select,button{
+    width:100%;border-radius:12px;border:1px solid var(--stroke);
+    background:rgba(0,0,0,0.18);color:var(--text);padding:10px 12px;outline:none
+  }
+  input::placeholder{color:rgba(255,255,255,0.45)}
+  button{cursor:pointer;transition:transform .04s ease,background .15s ease,border-color .15s ease}
+  button:hover{border-color:rgba(255,255,255,0.25)}
+  button:active{transform:translateY(1px)}
+  .btn-accent{background:rgba(125,211,252,0.18);border-color:rgba(125,211,252,0.35)}
+  .btn-danger{background:rgba(251,113,133,0.14);border-color:rgba(251,113,133,0.35)}
+  .btn-ghost{background:rgba(255,255,255,0.06)}
+  .row{display:flex;gap:10px;align-items:center}
+  .col{display:flex;flex-direction:column;gap:10px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid var(--stroke);border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+  .chip.active{border-color:rgba(125,211,252,0.55);color:rgba(255,255,255,0.9);background:rgba(125,211,252,0.12)}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .tag{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--stroke);color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+  .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
+  .list{margin-top:8px;border-top:1px solid var(--stroke);padding-top:10px;display:flex;flex-direction:column;gap:8px;max-height:560px;overflow:auto}
+  .item{padding:10px 10px;border:1px solid var(--stroke);border-radius:14px;background:rgba(0,0,0,0.14);display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+  .item strong{font-size:13px}
+  .meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .mini{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--stroke);color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted)}
+  .small{font-size:12px;color:var(--muted);line-height:1.35}
+  .mapTop{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+  .mapCard{border:1px solid var(--stroke);border-radius:18px;overflow:hidden;background:rgba(0,0,0,0.14);position:relative}
+  .stage{position:relative;width:100%;height:72vh;min-height:520px;overflow:hidden;background:rgba(0,0,0,0.12)}
+  .floorImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none;background:rgba(255,255,255,0.03)}
+  .overlay{position:absolute;inset:0}
+  canvas.heat{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;opacity:0.9}
+  .pin{position:absolute;width:14px;height:14px;border-radius:999px;border:2px solid rgba(0,0,0,0.35);transform:translate(-50%,-50%);cursor:pointer}
+  .pinLabel{position:absolute;transform:translate(8px,-50%);font-size:11px;color:rgba(255,255,255,0.9);text-shadow:0 1px 2px rgba(0,0,0,0.6);pointer-events:none;white-space:nowrap}
+  .selectedRing{position:absolute;width:30px;height:30px;border-radius:999px;border:3px solid var(--accent);transform:translate(-50%,-50%);pointer-events:none;opacity:0.9;animation:pulse 1.05s infinite ease-in-out}
+  @keyframes pulse{0%{transform:translate(-50%,-50%) scale(1);opacity:.9}50%{transform:translate(-50%,-50%) scale(1.25);opacity:.55}100%{transform:translate(-50%,-50%) scale(1);opacity:.9}}
+  .mapWarning{position:absolute;left:12px;top:12px;right:12px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.35);border-radius:12px;padding:10px 12px;color:rgba(255,255,255,0.9);font-size:12px;display:none;z-index:5}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="card">
+      <div>
+        <h1>Hospital Asset Tracking</h1>
+        <div class="sub">Live ESP32 tag + Cisco Spaces feed • Search + Locate • Status filters • Heatmap (stale / missing) • Auto refresh</div>
+      </div>
+      <div class="pill">Selected: <strong id="selectedName">None</strong></div>
+    </header>
+
+    <section class="left card">
+      <div class="col">
+        <div class="row">
+          <div style="flex:1">
+            <label for="viewSel">Floor / Zone (order: 1N, 1S, 2, 3)</label>
+            <select id="viewSel">
+              <option value="L1N">1) Floor 1 — North</option>
+              <option value="L1S">2) Floor 1 — South</option>
+              <option value="L2">3) Floor 2</option>
+              <option value="L3">4) Floor 3</option>
+            </select>
+          </div>
+          <div style="width:120px">
+            <label>&nbsp;</label>
+            <button class="btn-accent" id="locateBtn">Locate</button>
+          </div>
+        </div>
+
+        <div>
+          <label for="search">Search equipment</label>
+          <input id="search" placeholder="e.g., pump, wheelchair, ventilator, A-123…" />
+        </div>
+
+        <div>
+          <label>Filter status</label>
+          <div class="chips" id="chips">
+            <div class="chip active" data-filter="all">All</div>
+            <div class="chip" data-filter="In Use">In Use</div>
+            <div class="chip" data-filter="Available">Available</div>
+            <div class="chip" data-filter="Needs Maintenance">Needs Maintenance</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span class="tag"><span class="dot" style="background: var(--use)"></span>In Use</span>
+          <span class="tag"><span class="dot" style="background: var(--avail)"></span>Available</span>
+          <span class="tag"><span class="dot" style="background: var(--maint)"></span>Needs Maintenance</span>
+          <span class="tag"><span class="dot" style="background: var(--missing)"></span>Stale / Missing</span>
+        </div>
+
+        <div class="row">
+          <button class="btn-ghost" id="heatBtn">Heatmap: Off</button>
+          <button class="btn-ghost" id="simBtn">Auto refresh: On</button>
+        </div>
+
+        <div class="row">
+          <button class="btn-accent" id="refreshBtn">Refresh now</button>
+          <button class="btn-danger" id="resetBtn">Clear selection</button>
+        </div>
+
+        <div class="small">
+          Click a pin to select. In live mode the pin position comes from your backend, so the map itself is no longer click-to-move.
+        </div>
+
+        <div class="list" id="list"></div>
+      </div>
+    </section>
+
+    <section class="right card">
+      <div class="mapTop">
+        <div class="pill">Viewing: <strong id="viewTitle">Floor 1 — North</strong></div>
+        <div class="hint" id="lastSync">Waiting for data…</div>
+      </div>
+
+      <div class="mapCard">
+        <div class="stage" id="stage">
+          <div class="mapWarning" id="mapWarning">
+            Floor plan image did not load. Put the PNG files in the SAME folder as the HTML file and name exactly:
+            <b>floor1_north.png</b>, <b>floor1_south.png</b>, <b>floor2.png</b>, <b>floor3.png</b>.
+          </div>
+          <img id="floorImg" class="floorImg" alt="Floor plan" />
+          <canvas id="heatCanvas" class="heat"></canvas>
+          <div class="overlay" id="overlay"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+// These are the floor plan images shown in the background
+  const FLOOR_IMAGES = {
+    L1N: "floor1_north.png",
+    L1S: "floor1_south.png",
+    L2:  "floor2.png",
+    L3:  "floor3.png",
+  };
+
+// Defines where pins are allowed to appear on each map
+// Prevents pins from going off-screen or outside the building
+  const SAFE_ZONE = {
+    L1N: { x0:0.06, x1:0.94, y0:0.08, y1:0.92 },
+    L1S: { x0:0.05, x1:0.95, y0:0.08, y1:0.92 },
+    L2:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
+    L3:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
+  };
+
+// Stores all asset data from backend
+  let assets = [];
+
+// Currently selected asset
+  let selectedId = null;
+
+// Current floor being viewed
+  let view = "L1N";
+
+// Filters and toggles
+  let statusFilter = "all";
+  let heatOn = false;
+  let autoRefreshOn = true;
+  let refreshTimer = null;
+  let lastPayload = null;
+
+  const viewSel = document.getElementById("viewSel");
+  const viewTitle = document.getElementById("viewTitle");
+  const searchEl = document.getElementById("search");
+  const listEl = document.getElementById("list");
+  const overlay = document.getElementById("overlay");
+  const floorImg = document.getElementById("floorImg");
+  const selectedNameEl = document.getElementById("selectedName");
+  const chips = document.getElementById("chips");
+  const heatBtn = document.getElementById("heatBtn");
+  const simBtn = document.getElementById("simBtn");
+  const heatCanvas = document.getElementById("heatCanvas");
+  const mapWarning = document.getElementById("mapWarning");
+  const lastSyncEl = document.getElementById("lastSync");
+
+  function labelForView(v){
+    if (v === "L1N") return "Floor 1 — North";
+    if (v === "L1S") return "Floor 1 — South";
+    if (v === "L2") return "Floor 2";
+    return "Floor 3";
+  }
+
+  function statusColor(status) {
+    if (status === "In Use") return "var(--use)";
+    if (status === "Available") return "var(--avail)";
+    return "var(--maint)";
+  }
+
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function showMapWarning(show){ mapWarning.style.display = show ? "block" : "none"; }
+
+  function applyView(){
+    viewTitle.textContent = labelForView(view);
+    viewSel.value = view;
+    showMapWarning(false);
+    floorImg.onload = () => { showMapWarning(false); resizeHeatCanvas(); if (heatOn) drawHeatmap(); };
+    floorImg.onerror = () => { showMapWarning(true); };
+    floorImg.src = FLOOR_IMAGES[view] + "?v=" + Date.now();
+    resizeHeatCanvas();
+    if (heatOn) drawHeatmap();
+  }
+
+// Converts backend data into a format the UI can use
+  function normalizeAsset(raw){
+    const asset = { ...raw };
+    asset.id = raw.id || raw.assetId || raw.macAddress;
+    asset.name = raw.name || raw.assetId || raw.type || raw.macAddress || "Unnamed Asset";
+    asset.type = raw.type || raw.deviceType || "Tracked Asset";
+    asset.wireless = true;
+    asset.status = raw.status || "Available";
+    asset.battery = raw.batteryPercent ?? null;
+    asset.missing = !!raw.missing;
+    asset.updated = raw.updatedText || raw.lastSeenText || "Live";
+
+    const floor = raw.view || raw.floorLabel || "L1N";
+    asset.view = FLOOR_IMAGES[floor] ? floor : "L1N";
+
+    const z = SAFE_ZONE[asset.view];
+// Position on map (0–1 scale)
+    asset.x = clamp(Number(raw.x ?? 0.5), z.x0, z.x1);
+    asset.y = clamp(Number(raw.y ?? 0.5), z.y0, z.y1);
+    return asset;
+  }
+
+// This function calls your backend API to get live asset data
+  async function fetchAssets(){
+    try {
+      const res = await fetch("http://localhost:3000/api/assets"); //This is where our website connects to the backend to retrieve real-time asset locations
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      lastPayload = data;
+// Store incoming data
+      assets = (data.assets || []).map(normalizeAsset);
+      lastSyncEl.textContent = data.syncedAt ? `Last sync: ${new Date(data.syncedAt).toLocaleTimeString()}` : "Last sync: just now";
+      if (!assets.some(a => a.id === selectedId)) {
+        selectedId = null;
+        selectedNameEl.textContent = "None";
+      }
+// Update UI
+      renderList();
+      renderPins();
+      if (heatOn) drawHeatmap();
+    } catch (err) {
+      console.error(err);
+      lastSyncEl.textContent = "Could not reach backend";
+      listEl.innerHTML = `<div class="small">Backend not connected. Start server.js and make sure it is running on port 3000.</div>`;
+      overlay.innerHTML = "";
+      clearHeatmap();
+    }
+  }
+
+// Checks if an asset matches search + filters
+  function matchesFilters(a){
+    const q = searchEl.value.trim().toLowerCase();
+    const matchText = !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q) || a.type.toLowerCase().includes(q);
+    const matchView = a.view === view;
+    const matchStatus = statusFilter === "all" ? true : a.status === statusFilter;
+    return matchText && matchView && matchStatus;
+  }
+
+  function filteredAssets(){ return assets.filter(matchesFilters); }
+
+  function renderList(){
+    const rows = filteredAssets();
+    if (rows.length === 0){
+      listEl.innerHTML = `<div class="small">No assets match your search/filter on this floor.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = rows.map(a => {
+      const isSel = a.id === selectedId;
+      const border = isSel ? `style="border-color: rgba(125,211,252,0.55)"` : "";
+      const battery = a.battery != null
+        ? `<span class="mini">Battery ${a.battery}%</span>`
+        : `<span class="mini">Wireless</span>`;
+      const stalePill = a.missing ? `<span class="mini" style="border-color: rgba(167,139,250,0.35); color: rgba(233,213,255,0.95);"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;background:var(--missing);margin-right:6px;vertical-align:-1px;"></span>Stale / Missing</span>` : "";
+      const statusPill = `<span class="mini"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;background:${statusColor(a.status)};margin-right:6px;vertical-align:-1px;"></span>${a.status}</span>`;
+      return `
+        <div class="item" ${border}>
+          <div>
+            <strong>${a.name}</strong>
+            <div class="meta">
+              <span class="mini">ID ${a.id}</span>
+              <span class="mini">${a.type}</span>
+              <span class="mini">${labelForView(a.view)}</span>
+            </div>
+            <div class="meta">
+              ${statusPill}
+              ${stalePill}
+              ${battery}
+              <span class="mini">${a.updated}</span>
+            </div>
+          </div>
+          <div>
+            <button class="btn-accent" onclick="locate('${a.id}')">Locate</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+// Creates the dots (pins) on the map
+  function renderPins(){
+    overlay.innerHTML = "";
+    const pins = assets.filter(a => a.view === view);
+    pins.forEach(a => {
+      const dim = !matchesFilters(a);
+      const pin = document.createElement("div");
+      pin.className = "pin";
+ // Position on screen
+      pin.style.left = (a.x * 100) + "%";
+      pin.style.top = (a.y * 100) + "%";
+// Color based on status
+      pin.style.background = statusColor(a.status);
+      pin.style.opacity = dim ? "0.25" : "0.95";
+      if (a.missing) pin.style.boxShadow = "0 0 0 2px rgba(167,139,250,0.55), 0 0 18px rgba(167,139,250,0.35)";
+      pin.title = `${a.name} (${a.id}) — ${a.status}${a.missing ? " — Stale / Missing" : ""}`;
+// Click to select
+      pin.addEventListener("click", (e) => { e.stopPropagation(); select(a.id); });
+      overlay.appendChild(pin);
+
+      const label = document.createElement("div");
+      label.className = "pinLabel";
+      label.style.left = (a.x * 100) + "%";
+      label.style.top = (a.y * 100) + "%";
+      label.style.opacity = dim ? "0.25" : "0.95";
+      label.textContent = a.id;
+      overlay.appendChild(label);
+
+      if (a.id === selectedId){
+        const ring = document.createElement("div");
+        ring.className = "selectedRing";
+        ring.style.left = (a.x * 100) + "%";
+        ring.style.top = (a.y * 100) + "%";
+        overlay.appendChild(ring);
+      }
+    });
+  }
+
+  function select(id){
+    selectedId = id;
+    const a = assets.find(x => x.id === id);
+    selectedNameEl.textContent = a ? a.name : "None";
+    renderList();
+    renderPins();
+    if (heatOn) drawHeatmap();
+  }
+
+  window.locate = function(id){
+    const a = assets.find(x => x.id === id);
+    if (!a) return;
+    view = a.view;
+    applyView();
+    select(id);
+  };
+
+  function clearSelection(){
+    selectedId = null;
+    selectedNameEl.textContent = "None";
+    renderList();
+    renderPins();
+    if (heatOn) drawHeatmap();
+  }
+
+  function resizeHeatCanvas(){
+    const rect = document.getElementById("stage").getBoundingClientRect();
+    heatCanvas.width = Math.max(1, Math.floor(rect.width));
+    heatCanvas.height = Math.max(1, Math.floor(rect.height));
+  }
+
+  function clearHeatmap(){
+    const ctx = heatCanvas.getContext("2d");
+    ctx.clearRect(0, 0, heatCanvas.width, heatCanvas.height);
+  }
+
+// Draws glowing areas where missing assets are located
+  function drawHeatmap(){
+    clearHeatmap();
+    const ctx = heatCanvas.getContext("2d");
+    const w = heatCanvas.width, h = heatCanvas.height;
+    const pts = assets.filter(a => a.view === view && a.missing);
+    if (pts.length === 0) return;
+    const radius = Math.max(18, Math.min(w, h) * 0.06);
+    pts.forEach(p => {
+// Creates glowing effect around missing assets
+      const x = p.x * w, y = p.y * h;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      g.addColorStop(0, "rgba(255,255,255,0.55)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    });
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    const lerp = (a,b,t)=>a+(b-a)*t;
+    for (let i = 0; i < d.length; i += 4){
+      const alpha = d[i+3] / 255;
+      if (alpha <= 0) continue;
+      const t = Math.min(1, alpha);
+      d[i]   = lerp(167, 251, t);
+      d[i+1] = lerp(139, 113, t);
+      d[i+2] = lerp(250, 133, t);
+      d[i+3] = Math.floor(220 * t);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+// Refresh data every 5 seconds
+  function startRefresh(){
+    if (refreshTimer) return;
+    refreshTimer = setInterval(fetchAssets, 5000);
+  }
+
+  function stopRefresh(){
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+
+  viewSel.addEventListener("change", () => { view = viewSel.value; applyView(); renderList(); renderPins(); if (heatOn) drawHeatmap(); });
+  searchEl.addEventListener("input", () => { renderList(); renderPins(); if (heatOn) drawHeatmap(); });
+  document.getElementById("locateBtn").addEventListener("click", () => { if (selectedId) window.locate(selectedId); });
+  document.getElementById("refreshBtn").addEventListener("click", fetchAssets);
+  document.getElementById("resetBtn").addEventListener("click", clearSelection);
+
+  chips.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    [...chips.querySelectorAll(".chip")].forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    statusFilter = chip.dataset.filter;
+    renderList();
+    renderPins();
+    if (heatOn) drawHeatmap();
+  });
+
+  heatBtn.addEventListener("click", () => {
+    heatOn = !heatOn;
+    heatBtn.textContent = heatOn ? "Heatmap: On" : "Heatmap: Off";
+    if (heatOn) drawHeatmap(); else clearHeatmap();
+  });
+
+  simBtn.addEventListener("click", () => {
+    autoRefreshOn = !autoRefreshOn;
+    simBtn.textContent = autoRefreshOn ? "Auto refresh: On" : "Auto refresh: Off";
+    if (autoRefreshOn) startRefresh(); else stopRefresh();
+  });
+
+  window.addEventListener("resize", () => { resizeHeatCanvas(); if (heatOn) drawHeatmap(); });
+
+// Runs when the page loads
+  applyView();
+  renderList();
+  renderPins();
+  resizeHeatCanvas();
+  fetchAssets();
+  startRefresh();
+</script>
+</body>
+</html>
