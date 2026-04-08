@@ -166,304 +166,334 @@
   </div>
 
 <script>
-<script>
-
-// Floor plan images used as the background for each view
-// These must match the file names in your project folder
-const FLOOR_IMAGES = {
-  L1N: "floor1_north.png",
-  L1S: "floor1_south.png",
-  L2:  "floor2.png",
-  L3:  "floor3.png",
-};
-
-// Defines boundaries where asset pins are allowed to appear
-// Prevents pins from being placed outside the building layout
-const SAFE_ZONE = {
-  L1N: { x0:0.06, x1:0.94, y0:0.08, y1:0.92 },
-  L1S: { x0:0.05, x1:0.95, y0:0.08, y1:0.92 },
-  L2:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
-  L3:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
-};
-
-// Stores all asset data retrieved from backend
-// Each asset includes location, status, battery, and identification info
-let assets = [];
-
-// Tracks which asset is currently selected by the user
-let selectedId = null;
-
-// Current floor being displayed on the map
-let view = "L1N";
-
-// UI state variables (filters and toggles)
-let statusFilter = "all";
-let heatOn = false;
-let autoRefreshOn = true;
-let refreshTimer = null;
-let lastPayload = null;
-
-// Reference UI elements for easy access
-const viewSel = document.getElementById("viewSel");
-const viewTitle = document.getElementById("viewTitle");
-const searchEl = document.getElementById("search");
-const listEl = document.getElementById("list");
-const overlay = document.getElementById("overlay");
-const floorImg = document.getElementById("floorImg");
-const selectedNameEl = document.getElementById("selectedName");
-const chips = document.getElementById("chips");
-const heatBtn = document.getElementById("heatBtn");
-const simBtn = document.getElementById("simBtn");
-const heatCanvas = document.getElementById("heatCanvas");
-const mapWarning = document.getElementById("mapWarning");
-const lastSyncEl = document.getElementById("lastSync");
-
-// Returns readable label for each floor view
-function labelForView(v){
-  if (v === "L1N") return "Floor 1 — North";
-  if (v === "L1S") return "Floor 1 — South";
-  if (v === "L2") return "Floor 2";
-  return "Floor 3";
-}
-
-// Returns color for each asset status
-function statusColor(status) {
-  if (status === "In Use") return "var(--use)";
-  if (status === "Available") return "var(--avail)";
-  return "var(--maint)";
-}
-
-// Ensures values stay within a defined range
-function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-
-// Shows warning if map image fails to load
-function showMapWarning(show){ mapWarning.style.display = show ? "block" : "none"; }
-
-// Updates floor view and reloads corresponding image
-function applyView(){
-  viewTitle.textContent = labelForView(view);
-  viewSel.value = view;
-
-  showMapWarning(false);
-
-  floorImg.onload = () => {
-    showMapWarning(false);
-    resizeHeatCanvas();
-    if (heatOn) drawHeatmap();
+// These are the floor plan images shown in the background
+  const FLOOR_IMAGES = {
+    L1N: "floor1_north.png",
+    L1S: "floor1_south.png",
+    L2:  "floor2.png",
+    L3:  "floor3.png",
   };
 
-  floorImg.onerror = () => { showMapWarning(true); };
+// Defines where pins are allowed to appear on each map
+// Prevents pins from going off-screen or outside the building
+  const SAFE_ZONE = {
+    L1N: { x0:0.06, x1:0.94, y0:0.08, y1:0.92 },
+    L1S: { x0:0.05, x1:0.95, y0:0.08, y1:0.92 },
+    L2:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
+    L3:  { x0:0.12, x1:0.88, y0:0.12, y1:0.88 },
+  };
 
-  // Add timestamp to force refresh image
-  floorImg.src = FLOOR_IMAGES[view] + "?v=" + Date.now();
+// Stores all asset data from backend
+  let assets = [];
 
-  resizeHeatCanvas();
-  if (heatOn) drawHeatmap();
-}
+// Currently selected asset
+  let selectedId = null;
 
-// Converts backend asset data into UI-friendly format
-function normalizeAsset(raw){
+// Current floor being viewed
+  let view = "L1N";
 
-  const asset = { ...raw };
+// Filters and toggles
+  let statusFilter = "all";
+  let heatOn = false;
+  let autoRefreshOn = true;
+  let refreshTimer = null;
+  let lastPayload = null;
 
-  // Unique identifier (priority fallback system)
-  asset.id = raw.id || raw.assetId || raw.macAddress;
+  const viewSel = document.getElementById("viewSel");
+  const viewTitle = document.getElementById("viewTitle");
+  const searchEl = document.getElementById("search");
+  const listEl = document.getElementById("list");
+  const overlay = document.getElementById("overlay");
+  const floorImg = document.getElementById("floorImg");
+  const selectedNameEl = document.getElementById("selectedName");
+  const chips = document.getElementById("chips");
+  const heatBtn = document.getElementById("heatBtn");
+  const simBtn = document.getElementById("simBtn");
+  const heatCanvas = document.getElementById("heatCanvas");
+  const mapWarning = document.getElementById("mapWarning");
+  const lastSyncEl = document.getElementById("lastSync");
 
-  // Display name fallback system
-  asset.name = raw.name || raw.assetId || raw.type || raw.macAddress || "Unnamed Asset";
+  function labelForView(v){
+    if (v === "L1N") return "Floor 1 — North";
+    if (v === "L1S") return "Floor 1 — South";
+    if (v === "L2") return "Floor 2";
+    return "Floor 3";
+  }
 
-  // Asset category/type
-  asset.type = raw.type || raw.deviceType || "Tracked Asset";
+  function statusColor(status) {
+    if (status === "In Use") return "var(--use)";
+    if (status === "Available") return "var(--avail)";
+    return "var(--maint)";
+  }
 
-  // Indicates wireless tracking device
-  asset.wireless = true;
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 
-  // Default status if not provided
-  asset.status = raw.status || "Available";
+  function showMapWarning(show){ mapWarning.style.display = show ? "block" : "none"; }
 
-  // Battery percentage (if available)
-  asset.battery = raw.batteryPercent ?? null;
+  function applyView(){
+    viewTitle.textContent = labelForView(view);
+    viewSel.value = view;
+    showMapWarning(false);
+    floorImg.onload = () => { showMapWarning(false); resizeHeatCanvas(); if (heatOn) drawHeatmap(); };
+    floorImg.onerror = () => { showMapWarning(true); };
+    floorImg.src = FLOOR_IMAGES[view] + "?v=" + Date.now();
+    resizeHeatCanvas();
+    if (heatOn) drawHeatmap();
+  }
 
-  // Whether asset is missing/stale
-  asset.missing = !!raw.missing;
+// Converts backend data into a format the UI can use
+  function normalizeAsset(raw){
+    const asset = { ...raw };
+    asset.id = raw.id || raw.assetId || raw.macAddress;
+    asset.name = raw.name || raw.assetId || raw.type || raw.macAddress || "Unnamed Asset";
+    asset.type = raw.type || raw.deviceType || "Tracked Asset";
+    asset.wireless = true;
+    asset.status = raw.status || "Available";
+    asset.battery = raw.batteryPercent ?? null;
+    asset.missing = !!raw.missing;
+    asset.updated = raw.updatedText || raw.lastSeenText || "Live";
 
-  // Last update label
-  asset.updated = raw.updatedText || raw.lastSeenText || "Live";
+    const floor = raw.view || raw.floorLabel || "L1N";
+    asset.view = FLOOR_IMAGES[floor] ? floor : "L1N";
 
-  // Determine floor (default to L1N)
-  const floor = raw.view || raw.floorLabel || "L1N";
-  asset.view = FLOOR_IMAGES[floor] ? floor : "L1N";
+    const z = SAFE_ZONE[asset.view];
+// Position on map (0–1 scale)
+    asset.x = clamp(Number(raw.x ?? 0.5), z.x0, z.x1);
+    asset.y = clamp(Number(raw.y ?? 0.5), z.y0, z.y1);
+    return asset;
+  }
 
-  const z = SAFE_ZONE[asset.view];
+// This function calls your backend API to get live asset data
+  async function fetchAssets(){
+    try {
+      const res = await fetch("http://localhost:3000/api/assets"); //This is where our website connects to the backend to retrieve real-time asset locations
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      lastPayload = data;
+// Store incoming data
+      assets = (data.assets || []).map(normalizeAsset);
+      lastSyncEl.textContent = data.syncedAt ? `Last sync: ${new Date(data.syncedAt).toLocaleTimeString()}` : "Last sync: just now";
+      if (!assets.some(a => a.id === selectedId)) {
+        selectedId = null;
+        selectedNameEl.textContent = "None";
+      }
+// Update UI
+      renderList();
+      renderPins();
+      if (heatOn) drawHeatmap();
+    } catch (err) {
+      console.error(err);
+      lastSyncEl.textContent = "Could not reach backend";
+      listEl.innerHTML = `<div class="small">Backend not connected. Start server.js and make sure it is running on port 3000.</div>`;
+      overlay.innerHTML = "";
+      clearHeatmap();
+    }
+  }
 
-  // Normalize position within safe boundaries (0–1 scale)
-  asset.x = clamp(Number(raw.x ?? 0.5), z.x0, z.x1);
-  asset.y = clamp(Number(raw.y ?? 0.5), z.y0, z.y1);
+// Checks if an asset matches search + filters
+  function matchesFilters(a){
+    const q = searchEl.value.trim().toLowerCase();
+    const matchText = !q || a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q) || a.type.toLowerCase().includes(q);
+    const matchView = a.view === view;
+    const matchStatus = statusFilter === "all" ? true : a.status === statusFilter;
+    return matchText && matchView && matchStatus;
+  }
 
-  return asset;
-}
+  function filteredAssets(){ return assets.filter(matchesFilters); }
 
-// Fetches live asset data from backend server
-async function fetchAssets(){
-  try {
-
-    // Request latest asset data
-    const res = await fetch("http://localhost:3000/api/assets");
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
-
-    lastPayload = data;
-
-    // Convert raw backend data into usable format
-    assets = (data.assets || []).map(normalizeAsset);
-
-    // Update last sync time
-    lastSyncEl.textContent = data.syncedAt
-      ? `Last sync: ${new Date(data.syncedAt).toLocaleTimeString()}`
-      : "Last sync: just now";
-
-    // Reset selection if asset no longer exists
-    if (!assets.some(a => a.id === selectedId)) {
-      selectedId = null;
-      selectedNameEl.textContent = "None";
+  function renderList(){
+    const rows = filteredAssets();
+    if (rows.length === 0){
+      listEl.innerHTML = `<div class="small">No assets match your search/filter on this floor.</div>`;
+      return;
     }
 
-    // Update UI
+    listEl.innerHTML = rows.map(a => {
+      const isSel = a.id === selectedId;
+      const border = isSel ? `style="border-color: rgba(125,211,252,0.55)"` : "";
+      const battery = a.battery != null
+        ? `<span class="mini">Battery ${a.battery}%</span>`
+        : `<span class="mini">Wireless</span>`;
+      const stalePill = a.missing ? `<span class="mini" style="border-color: rgba(167,139,250,0.35); color: rgba(233,213,255,0.95);"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;background:var(--missing);margin-right:6px;vertical-align:-1px;"></span>Stale / Missing</span>` : "";
+      const statusPill = `<span class="mini"><span style="display:inline-block;width:9px;height:9px;border-radius:999px;background:${statusColor(a.status)};margin-right:6px;vertical-align:-1px;"></span>${a.status}</span>`;
+      return `
+        <div class="item" ${border}>
+          <div>
+            <strong>${a.name}</strong>
+            <div class="meta">
+              <span class="mini">ID ${a.id}</span>
+              <span class="mini">${a.type}</span>
+              <span class="mini">${labelForView(a.view)}</span>
+            </div>
+            <div class="meta">
+              ${statusPill}
+              ${stalePill}
+              ${battery}
+              <span class="mini">${a.updated}</span>
+            </div>
+          </div>
+          <div>
+            <button class="btn-accent" onclick="locate('${a.id}')">Locate</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+// Creates the dots (pins) on the map
+  function renderPins(){
+    overlay.innerHTML = "";
+    const pins = assets.filter(a => a.view === view);
+    pins.forEach(a => {
+      const dim = !matchesFilters(a);
+      const pin = document.createElement("div");
+      pin.className = "pin";
+ // Position on screen
+      pin.style.left = (a.x * 100) + "%";
+      pin.style.top = (a.y * 100) + "%";
+// Color based on status
+      pin.style.background = statusColor(a.status);
+      pin.style.opacity = dim ? "0.25" : "0.95";
+      if (a.missing) pin.style.boxShadow = "0 0 0 2px rgba(167,139,250,0.55), 0 0 18px rgba(167,139,250,0.35)";
+      pin.title = `${a.name} (${a.id}) — ${a.status}${a.missing ? " — Stale / Missing" : ""}`;
+// Click to select
+      pin.addEventListener("click", (e) => { e.stopPropagation(); select(a.id); });
+      overlay.appendChild(pin);
+
+      const label = document.createElement("div");
+      label.className = "pinLabel";
+      label.style.left = (a.x * 100) + "%";
+      label.style.top = (a.y * 100) + "%";
+      label.style.opacity = dim ? "0.25" : "0.95";
+      label.textContent = a.id;
+      overlay.appendChild(label);
+
+      if (a.id === selectedId){
+        const ring = document.createElement("div");
+        ring.className = "selectedRing";
+        ring.style.left = (a.x * 100) + "%";
+        ring.style.top = (a.y * 100) + "%";
+        overlay.appendChild(ring);
+      }
+    });
+  }
+
+  function select(id){
+    selectedId = id;
+    const a = assets.find(x => x.id === id);
+    selectedNameEl.textContent = a ? a.name : "None";
     renderList();
     renderPins();
     if (heatOn) drawHeatmap();
-
-  } catch (err) {
-
-    console.error(err);
-
-    // Display connection error
-    lastSyncEl.textContent = "Could not reach backend";
-
-    listEl.innerHTML = `<div class="small">
-      Backend not connected. Start server.js and ensure it is running on port 3000.
-    </div>`;
-
-    overlay.innerHTML = "";
-    clearHeatmap();
   }
-}
 
-// Checks if asset matches search and filter criteria
-function matchesFilters(a){
-  const q = searchEl.value.trim().toLowerCase();
+  window.locate = function(id){
+    const a = assets.find(x => x.id === id);
+    if (!a) return;
+    view = a.view;
+    applyView();
+    select(id);
+  };
 
-  const matchText =
-    !q ||
-    a.name.toLowerCase().includes(q) ||
-    a.id.toLowerCase().includes(q) ||
-    a.type.toLowerCase().includes(q);
+  function clearSelection(){
+    selectedId = null;
+    selectedNameEl.textContent = "None";
+    renderList();
+    renderPins();
+    if (heatOn) drawHeatmap();
+  }
 
-  const matchView = a.view === view;
+  function resizeHeatCanvas(){
+    const rect = document.getElementById("stage").getBoundingClientRect();
+    heatCanvas.width = Math.max(1, Math.floor(rect.width));
+    heatCanvas.height = Math.max(1, Math.floor(rect.height));
+  }
 
-  const matchStatus =
-    statusFilter === "all" ? true : a.status === statusFilter;
+  function clearHeatmap(){
+    const ctx = heatCanvas.getContext("2d");
+    ctx.clearRect(0, 0, heatCanvas.width, heatCanvas.height);
+  }
 
-  return matchText && matchView && matchStatus;
-}
-
-// Returns filtered asset list
-function filteredAssets(){
-  return assets.filter(matchesFilters);
-}
-
-// Renders asset pins on the map
-function renderPins(){
-
-  overlay.innerHTML = "";
-
-  const pins = assets.filter(a => a.view === view);
-
-  pins.forEach(a => {
-
-    const dim = !matchesFilters(a);
-
-    const pin = document.createElement("div");
-    pin.className = "pin";
-
-    // Position pin on map
-    pin.style.left = (a.x * 100) + "%";
-    pin.style.top = (a.y * 100) + "%";
-
-    // Color based on status
-    pin.style.background = statusColor(a.status);
-
-    // Fade non-matching assets
-    pin.style.opacity = dim ? "0.25" : "0.95";
-
-    // Highlight missing assets
-    if (a.missing)
-      pin.style.boxShadow = "0 0 0 2px rgba(167,139,250,0.55)";
-
-    // Tooltip info
-    pin.title = `${a.name} (${a.id}) — ${a.status}`;
-
-    // Click to select asset
-    pin.addEventListener("click", (e) => {
-      e.stopPropagation();
-      select(a.id);
+// Draws glowing areas where missing assets are located
+  function drawHeatmap(){
+    clearHeatmap();
+    const ctx = heatCanvas.getContext("2d");
+    const w = heatCanvas.width, h = heatCanvas.height;
+    const pts = assets.filter(a => a.view === view && a.missing);
+    if (pts.length === 0) return;
+    const radius = Math.max(18, Math.min(w, h) * 0.06);
+    pts.forEach(p => {
+// Creates glowing effect around missing assets
+      const x = p.x * w, y = p.y * h;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      g.addColorStop(0, "rgba(255,255,255,0.55)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
     });
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    const lerp = (a,b,t)=>a+(b-a)*t;
+    for (let i = 0; i < d.length; i += 4){
+      const alpha = d[i+3] / 255;
+      if (alpha <= 0) continue;
+      const t = Math.min(1, alpha);
+      d[i]   = lerp(167, 251, t);
+      d[i+1] = lerp(139, 113, t);
+      d[i+2] = lerp(250, 133, t);
+      d[i+3] = Math.floor(220 * t);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
 
-    overlay.appendChild(pin);
+// Refresh data every 5 seconds
+  function startRefresh(){
+    if (refreshTimer) return;
+    refreshTimer = setInterval(fetchAssets, 5000);
+  }
+
+  function stopRefresh(){
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+
+  viewSel.addEventListener("change", () => { view = viewSel.value; applyView(); renderList(); renderPins(); if (heatOn) drawHeatmap(); });
+  searchEl.addEventListener("input", () => { renderList(); renderPins(); if (heatOn) drawHeatmap(); });
+  document.getElementById("locateBtn").addEventListener("click", () => { if (selectedId) window.locate(selectedId); });
+  document.getElementById("refreshBtn").addEventListener("click", fetchAssets);
+  document.getElementById("resetBtn").addEventListener("click", clearSelection);
+
+  chips.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    [...chips.querySelectorAll(".chip")].forEach(c => c.classList.remove("active"));
+    chip.classList.add("active");
+    statusFilter = chip.dataset.filter;
+    renderList();
+    renderPins();
+    if (heatOn) drawHeatmap();
   });
-}
 
-// Draws heatmap for missing assets
-function drawHeatmap(){
-
-  clearHeatmap();
-
-  const ctx = heatCanvas.getContext("2d");
-
-  const pts = assets.filter(a => a.view === view && a.missing);
-
-  if (pts.length === 0) return;
-
-  pts.forEach(p => {
-
-    // Create glowing effect
-    const x = p.x * heatCanvas.width;
-    const y = p.y * heatCanvas.height;
-
-    const g = ctx.createRadialGradient(x, y, 0, x, y, 50);
-
-    g.addColorStop(0, "rgba(255,255,255,0.6)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, 50, 0, Math.PI * 2);
-    ctx.fill();
+  heatBtn.addEventListener("click", () => {
+    heatOn = !heatOn;
+    heatBtn.textContent = heatOn ? "Heatmap: On" : "Heatmap: Off";
+    if (heatOn) drawHeatmap(); else clearHeatmap();
   });
-}
 
-// Starts automatic refresh every 5 seconds
-function startRefresh(){
-  if (refreshTimer) return;
-  refreshTimer = setInterval(fetchAssets, 5000);
-}
+  simBtn.addEventListener("click", () => {
+    autoRefreshOn = !autoRefreshOn;
+    simBtn.textContent = autoRefreshOn ? "Auto refresh: On" : "Auto refresh: Off";
+    if (autoRefreshOn) startRefresh(); else stopRefresh();
+  });
 
-// Stops automatic refresh
-function stopRefresh(){
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = null;
-}
+  window.addEventListener("resize", () => { resizeHeatCanvas(); if (heatOn) drawHeatmap(); });
 
-// Initialize application on page load
-applyView();
-renderList();
-renderPins();
-resizeHeatCanvas();
-fetchAssets();
-startRefresh();
-
+// Runs when the page loads
+  applyView();
+  renderList();
+  renderPins();
+  resizeHeatCanvas();
+  fetchAssets();
+  startRefresh();
 </script>
 </body>
 </html>
