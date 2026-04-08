@@ -1,14 +1,14 @@
 {
-  // Name of your project (can be anything)
+  // Name of your project 
   "name": "asset-tracker-live",
 
   // Version of your project
   "version": "1.0.0",
 
-  // Means this project is not meant to be published publicly (safe for school projects)
+  // Project is not meant to be published publicly
   "private": true,
 
-  // The main file that runs your backend server
+  // Main file that runs the backend server
   "main": "server.js",
 
   // Commands you can run in terminal
