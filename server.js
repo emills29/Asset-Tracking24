@@ -3,13 +3,13 @@ const cors = require('cors');         // Allows frontend to talk to backend
 const axios = require('axios');       // Used to call Cisco Spaces API
 require('dotenv').config();           // Loads .env variables
 
-// ====================== APP SETUP ======================
+//  APP SETUP 
 
 const app = express();
 app.use(cors());              // Allow cross-origin requests (VERY important)
 app.use(express.json());      // Allows us to read JSON from ESP32
 
-// ====================== CONFIG ======================
+// CONFIG 
 
 const PORT = process.env.PORT || 3000;
 
@@ -20,12 +20,12 @@ const SPACES_TOKEN = process.env.CISCO_SPACES_TOKEN || '';
 // How long before a tracker is considered "missing"
 const HEARTBEAT_STALE_SECONDS = Number(process.env.HEARTBEAT_STALE_SECONDS || 45);
 
-// ====================== STORAGE ======================
+// STORAGE 
 
 // Stores latest ESP32 heartbeat data (RAM only)
 const heartbeats = new Map();
 
-// Maps MAC address → asset info (VERY important for matching Cisco Spaces)
+// Maps MAC address → asset info (important for matching Cisco Spaces)
 const ASSET_REGISTRY = {
   'aa:bb:cc:dd:ee:ff': {
     assetId: 'A-101',
@@ -38,7 +38,7 @@ const ASSET_REGISTRY = {
   }
 };
 
-// ====================== HELPER FUNCTIONS ======================
+// HELPER FUNCTIONS
 
 // Makes MAC address lowercase + consistent
 function normalizeMac(mac) {
@@ -72,7 +72,7 @@ function normalizeCoordinates(device, fallbackView, fallbackX, fallbackY) {
     return { view: fallbackView, x: fallbackX, y: fallbackY, source: 'fallback' };
   }
 
-  // IMPORTANT: You MUST tune these for your real floor plan
+  // Need to be tuned for real floor plan
   const FLOOR_SIZE = {
     L1N: { width: 250, height: 200 },
     L1S: { width: 250, height: 200 },
@@ -90,7 +90,7 @@ function normalizeCoordinates(device, fallbackView, fallbackX, fallbackY) {
   return { view, x, y, source: 'cisco_spaces' };
 }
 
-// ====================== ESP32 DATA RECEIVER ======================
+//  ESP32 DATA RECEIVER 
 
 // ESP32 sends data here
 app.post('/api/heartbeat', (req, res) => {
@@ -123,7 +123,7 @@ app.post('/api/heartbeat', (req, res) => {
   res.json({ success: true });
 });
 
-// ====================== CISCO SPACES API CALL ======================
+//  CISCO SPACES API CALL 
 
 async function getCiscoSpacesDevices() {
 
@@ -144,7 +144,7 @@ async function getCiscoSpacesDevices() {
   }
 }
 
-// ====================== MAIN API FOR WEBSITE ======================
+// MAIN API FOR WEBSITE
 
 // Website calls this to get asset positions
 app.get('/api/assets', async (req, res) => {
@@ -193,7 +193,7 @@ app.get('/api/assets', async (req, res) => {
         ? `Last tag heartbeat ${ageSeconds}s ago`
         : 'Just now',
 
-      // Extra Cisco data (optional for display)
+      // Extra Cisco data 
       locationSource: location.source,
       hierarchy: spacesDevice?.hierarchy || null,
       floorId: spacesDevice?.floorId || null,
@@ -212,7 +212,7 @@ app.get('/api/assets', async (req, res) => {
   });
 });
 
-// ====================== HEALTH CHECK ======================
+// HEALTH CHECK
 
 // Quick test endpoint
 app.get('/api/health', (req, res) => {
@@ -224,7 +224,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ====================== START SERVER ======================
+// START SERVER
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
