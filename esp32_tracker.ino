@@ -1,38 +1,46 @@
 #include <WiFi.h>        // Library to connect ESP32 to WiFi
 #include <HTTPClient.h>  // Library to send HTTP requests (POST to backend)
 
-// ====================== WIFI + SERVER CONFIG ======================
+// WIFI + SERVER CONFIG
 
-// Your WiFi credentials (same network as your backend ideally)
+// WiFi credentials (same network as your backend ideally)
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
 // URL of your backend server that receives tracker data
 const char* BACKEND_URL = "http://YOUR_COMPUTER_IP:3000/api/heartbeat";
 
-// ====================== ASSET INFORMATION ======================
+// ASSET INFORMATION
 
 // Unique ID for this piece of equipment
 const char* ASSET_ID = "A-101";
 
-// Name shown on your website
+// Name shown on website
 const char* ASSET_NAME = "Infusion Pump #1";
 
-// Type/category of equipment
+// Category of equipment
 const char* ASSET_TYPE = "Large Volume Infusion Pump";
 
 // Fallback floor (used if Cisco Spaces data is unavailable)
 const char* FLOOR_LABEL = "L1N";
 
-// ====================== BATTERY SETTINGS ======================
+// BATTERY SETTINGS
 
-// Analog pin for battery reading (depends on your board wiring)
+// Analog pin for battery reading (depends board wiring)
 const int BATTERY_PIN = A0;
 
 // Set to true ONLY if you actually wired a battery reader
 const bool HAS_BATTERY_READER = false;
 
-// ====================== TIMING ======================
+// STATUS SETTINGS
+
+// Approximate WiFi signal threshold for deciding whether the asset
+// has moved away from its home area.
+// Stronger signal (less negative, like -45) = still near home
+// Weaker signal (more negative, like -75) = has moved away
+const int HOME_RSSI_THRESHOLD = -65;
+
+// TIMING
 
 // Stores last time we sent data
 unsigned long lastPost = 0;
@@ -40,15 +48,15 @@ unsigned long lastPost = 0;
 // How often to send data (milliseconds)
 const unsigned long POST_INTERVAL_MS = 5000;
 
-// ====================== BATTERY FUNCTIONS ======================
+// BATTERY FUNCTIONS
 
 // Reads battery voltage from analog pin
 float readBatteryVoltage() {
   if (!HAS_BATTERY_READER) return -1.0; // Skip if not enabled
 
   int raw = analogRead(BATTERY_PIN);   // Read analog value (0–4095)
-  
-  // Convert to voltage (adjust multiplier depending on voltage divider)
+
+  // Convert to voltage
   float voltage = ((float)raw / 4095.0f) * 3.3f * 2.0f;
 
   return voltage;
@@ -56,7 +64,7 @@ float readBatteryVoltage() {
 
 // Converts voltage to percentage (approximation)
 int batteryPercentFromVoltage(float v) {
-  if (v < 0) return -1;     // No reading
+  if (v < 0) return -1;      // No reading
   if (v >= 4.2f) return 100; // Fully charged
   if (v <= 3.2f) return 0;   // Dead
 
@@ -64,7 +72,19 @@ int batteryPercentFromVoltage(float v) {
   return (int)(((v - 3.2f) / (4.2f - 3.2f)) * 100.0f);
 }
 
-// ====================== WIFI CONNECTION ======================
+// STATUS FUNCTION
+
+// Determines whether the asset is still at its home location
+// or has moved away based on WiFi signal strength.
+String getAssetStatus(int rssi) {
+  if (rssi <= HOME_RSSI_THRESHOLD) {
+    return "Available";  // Asset has moved away from its home area
+  } else {
+    return "At Home";    // Asset is still near its home area
+  }
+}
+
+// WIFI CONNECTION
 
 // Connects ESP32 to WiFi
 void connectWifi() {
@@ -90,7 +110,7 @@ void connectWifi() {
   Serial.println(WiFi.macAddress()); // IMPORTANT: used by Cisco Spaces
 }
 
-// ====================== SEND DATA TO BACKEND ======================
+// SEND DATA TO BACKEND
 
 // Sends asset data (heartbeat) to your server
 void postHeartbeat() {
@@ -111,7 +131,13 @@ void postHeartbeat() {
   float batteryVoltage = readBatteryVoltage();
   int batteryPercent = batteryPercentFromVoltage(batteryVoltage);
 
-  // ====================== BUILD JSON PAYLOAD ======================
+  // Get current WiFi signal strength
+  int currentRSSI = WiFi.RSSI();
+
+  // Determine asset status from signal strength
+  String assetStatus = getAssetStatus(currentRSSI);
+
+  // BUILD JSON PAYLOAD
 
   String payload = "{";
 
@@ -122,15 +148,16 @@ void postHeartbeat() {
   // Used by your frontend if Cisco Spaces location is missing
   payload += "\"floorLabel\":\"" + String(FLOOR_LABEL) + "\",";
 
-  // VERY IMPORTANT: this MAC is what Cisco Spaces tracks
+  // What Cisco Spaces tracks
   payload += "\"macAddress\":\"" + WiFi.macAddress() + "\",";
 
   // Useful debugging info
   payload += "\"ipAddress\":\"" + WiFi.localIP().toString() + "\",";
-  payload += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+  payload += "\"rssi\":" + String(currentRSSI) + ",";
 
-  // Hardcoded status (you can make this dynamic later)
-  payload += "\"status\":\"Available\",";
+  // Dynamic status:
+  // If the tracker leaves its home area, it becomes "Available"
+  payload += "\"status\":\"" + assetStatus + "\",";
 
   // Battery (if available)
   if (batteryPercent >= 0) {
@@ -141,9 +168,8 @@ void postHeartbeat() {
 
   payload += "}";
 
-  // ====================== SEND REQUEST ======================
-
-  int code = http.POST(payload);     // Send POST request
+  // SEND REQUEST
+  int code = http.POST(payload);      // Send POST request
   String response = http.getString(); // Get server response
 
   // Debug output
@@ -151,10 +177,16 @@ void postHeartbeat() {
   Serial.println(code);
   Serial.println(response);
 
+  Serial.print("Current RSSI: ");
+  Serial.println(currentRSSI);
+
+  Serial.print("Asset status: ");
+  Serial.println(assetStatus);
+
   http.end(); // Close connection
 }
 
-// ====================== SETUP ======================
+// SETUP
 
 void setup() {
   Serial.begin(115200); // Start serial monitor
@@ -163,7 +195,7 @@ void setup() {
   connectWifi(); // Connect to WiFi at startup
 }
 
-// ====================== MAIN LOOP ======================
+// MAIN LOOP
 
 void loop() {
 
