@@ -1,0 +1,35 @@
+{
+  // Name of your project (can be anything)
+  "name": "asset-tracker-live",
+
+  // Version of your project
+  "version": "1.0.0",
+
+  // Means this project is not meant to be published publicly (safe for school projects)
+  "private": true,
+
+  // The main file that runs your backend server
+  "main": "server.js",
+
+  // Commands you can run in terminal
+  "scripts": {
+    // When you type: npm start → it runs server.js
+    "start": "node server.js"
+  },
+
+  // Libraries your backend depends on
+  "dependencies": {
+
+    // Used to make HTTP requests (ex: call Cisco Spaces API)
+    "axios": "^1.7.9",
+
+    // Allows your website to talk to your backend (avoids CORS errors)
+    "cors": "^2.8.5",
+
+    // Lets you store secret stuff (like API keys) in a .env file
+    "dotenv": "^16.4.7",
+
+    // The main backend framework (handles routes like /api/assets)
+    "express": "^4.21.2"
+  }
+}
