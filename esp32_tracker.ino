@@ -21,12 +21,12 @@ const char* ASSET_NAME = "Infusion Pump #1";
 // Category of equipment
 const char* ASSET_TYPE = "Large Volume Infusion Pump";
 
-// Fallback floor (used if Cisco Spaces data is unavailable)
+// Fallback floor 
 const char* FLOOR_LABEL = "L1N";
 
 // BATTERY SETTINGS
 
-// Analog pin for battery reading (depends board wiring)
+// Analog pin for battery reading 
 const int BATTERY_PIN = A0;
 
 // Set to true ONLY if you actually wired a battery reader
@@ -34,8 +34,7 @@ const bool HAS_BATTERY_READER = false;
 
 // STATUS SETTINGS
 
-// Approximate WiFi signal threshold for deciding whether the asset
-// has moved away from its home area.
+// Approximate WiFi signal threshold for deciding whether the asset has moved away from its home area.
 // Stronger signal (less negative, like -45) = still near home
 // Weaker signal (more negative, like -75) = has moved away
 const int HOME_RSSI_THRESHOLD = -65;
@@ -54,7 +53,7 @@ const unsigned long POST_INTERVAL_MS = 5000;
 float readBatteryVoltage() {
   if (!HAS_BATTERY_READER) return -1.0; // Skip if not enabled
 
-  int raw = analogRead(BATTERY_PIN);   // Read analog value (0–4095)
+  int raw = analogRead(BATTERY_PIN); 
 
   // Convert to voltage
   float voltage = ((float)raw / 4095.0f) * 3.3f * 2.0f;
@@ -62,7 +61,7 @@ float readBatteryVoltage() {
   return voltage;
 }
 
-// Converts voltage to percentage (approximation)
+// Converts voltage to percentage 
 int batteryPercentFromVoltage(float v) {
   if (v < 0) return -1;      // No reading
   if (v >= 4.2f) return 100; // Fully charged
@@ -74,13 +73,12 @@ int batteryPercentFromVoltage(float v) {
 
 // STATUS FUNCTION
 
-// Determines whether the asset is still at its home location
-// or has moved away based on WiFi signal strength.
+// Determines whether the asset is still at its home location or has moved away based on WiFi signal strength.
 String getAssetStatus(int rssi) {
   if (rssi <= HOME_RSSI_THRESHOLD) {
-    return "Available";  // Asset has moved away from its home area
+    return "Available"; 
   } else {
-    return "At Home";    // Asset is still near its home area
+    return "At Home";
   }
 }
 
@@ -88,7 +86,7 @@ String getAssetStatus(int rssi) {
 
 // Connects ESP32 to WiFi
 void connectWifi() {
-  WiFi.mode(WIFI_STA); // Set to station mode (client)
+  WiFi.mode(WIFI_STA); 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   Serial.print("Connecting to WiFi");
@@ -107,7 +105,7 @@ void connectWifi() {
   Serial.println(WiFi.localIP());
 
   Serial.print("MAC: ");
-  Serial.println(WiFi.macAddress()); // IMPORTANT: used by Cisco Spaces
+  Serial.println(WiFi.macAddress()); 
 }
 
 // SEND DATA TO BACKEND
@@ -159,7 +157,7 @@ void postHeartbeat() {
   // If the tracker leaves its home area, it becomes "Available"
   payload += "\"status\":\"" + assetStatus + "\",";
 
-  // Battery (if available)
+  // Battery
   if (batteryPercent >= 0) {
     payload += "\"batteryPercent\":" + String(batteryPercent);
   } else {
